@@ -19,28 +19,32 @@ async def research_tool(request: ToolResearchRequest):
         ToolResearchResponse with research results and YouTube links
     """
     try:
+        # Step 1: Search for general tool information
         general_query = f"{request.tool_name} tool usage guide tutorial"
-        raw_results = tavily_service.search_medical_research(
+        raw_results = tavily_service.search_tool_info(
             query=general_query,
             max_results=request.max_results
         )
         
-        
+        # Step 2: Search specifically for YouTube tutorials
         youtube_query = f"{request.tool_name} how to use tutorial"
-        youtube_results = tavily_service.search_medical_research(
+        youtube_results = tavily_service.search_youtube_tutorials(
             query=youtube_query,
             max_results=5
         )
         
+        # Format all results
         formatted_general = tavily_service.format_results(raw_results)
         formatted_youtube = tavily_service.format_results(youtube_results)
         
+        # Extract YouTube links
         youtube_links = [
             {"title": r["title"], "url": r["url"]}
             for r in formatted_youtube
             if "youtube.com" in r["url"] or "youtu.be" in r["url"]
         ]
         
+        # Prepare research results
         research_results = [
             ResearchResult(
                 title=r["title"],
@@ -51,6 +55,7 @@ async def research_tool(request: ToolResearchRequest):
             for r in formatted_general
         ]
         
+        # Build context text for downstream processing
         context_text = _build_context_text(
             tool_name=request.tool_name,
             tool_description=request.tool_description,
@@ -108,29 +113,29 @@ def _build_context_text(
     return "\n".join(context_parts)
 
 
-# @router.post("/quick-tool-summary")
-# async def get_quick_tool_summary(tool_name: str, language: str = "en"):
-#     """
-#     Quick endpoint to get just basic search results for a tool
-#     """
-#     try:
-#         query = f"{tool_name} tool purpose and usage"
-#         raw_results = tavily_service.search_medical_research(
-#             query=query,
-#             max_results=3
-#         )
+@router.post("/quick-tool-summary")
+async def get_quick_tool_summary(tool_name: str, language: str = "en"):
+    """
+    Quick endpoint to get just basic search results for a tool
+    """
+    try:
+        query = f"{tool_name} tool purpose and usage"
+        raw_results = tavily_service.search_tool_info(
+            query=query,
+            max_results=3
+        )
         
-#         formatted = tavily_service.format_results(raw_results)
+        formatted = tavily_service.format_results(raw_results)
         
-#         return {
-#             "tool_name": tool_name,
-#             "query": query,
-#             "results": formatted,
-#             "timestamp": datetime.now()
-#         }
+        return {
+            "tool_name": tool_name,
+            "query": query,
+            "results": formatted,
+            "timestamp": datetime.now()
+        }
         
-#     except Exception as e:
-#         raise HTTPException(
-#             status_code=500,
-#             detail=f"Quick summary error: {str(e)}"
-#         )
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Quick summary error: {str(e)}"
+        )

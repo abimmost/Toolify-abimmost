@@ -33,6 +33,7 @@ class ToolResearchResponse(BaseModel):
     youtube_links: List[YouTubeLink]
     research_context: str  # Context text to pass to Gemini
     timestamp: datetime
+    manual_generation_payload: Optional[dict] = None  # Ready-to-use payload for manual generation
 
 
 # Keep your existing schemas as well
