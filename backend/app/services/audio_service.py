@@ -1,3 +1,4 @@
+
 import os
 from gtts import gTTS
 from datetime import datetime
@@ -57,4 +58,3 @@ class AudioService:
             raise Exception(f"Summary audio error: {str(e)}")
 
 
-audio_service = AudioService()
