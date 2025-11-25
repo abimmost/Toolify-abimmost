@@ -21,7 +21,7 @@ def recognize_tools_in_image(image_bytes: bytes) -> Optional[str]:
         image = Image.open(io.BytesIO(image_bytes))
         prompt = (
             "Analyze the image and identify any tool or object detected, closest to the camera. "
-            "Return the most specific name and type you can. "
+            "Return the most specific name and type you can. No commas, one name!"
             "Return only the specific name and type, nothing else. "
             "If no tool or object is found, return nothing"
         )
