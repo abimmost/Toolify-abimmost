@@ -58,7 +58,7 @@ def perform_tool_research(
     formatted_youtube = tavily_service.format_results(youtube_results)
     
     youtube_links = [
-        YouTubeLink(title=r["title"], url=r["url"])
+        YouTubeLink(title=r["title"], url=r["url"], score=r.get("score", 0.0))
         for r in formatted_youtube
         if "youtube.com" in r["url"] or "youtu.be" in r["url"]
     ]
