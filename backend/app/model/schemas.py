@@ -15,6 +15,7 @@ class YouTubeLink(BaseModel):
     """YouTube tutorial link"""
     title: str
     url: str
+    score: float = Field(default=0.0, description="Relevance score of the YouTube link")
 
 
 class ResearchResult(BaseModel):
