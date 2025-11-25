@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.config import settings
-from app.routes import research, manual, tool_recognition
+from app.routes import manual, tool_recognition
 
 # Create FastAPI app
 app = FastAPI(
@@ -20,7 +20,6 @@ app.add_middleware(
 )
 
 # Register routers
-app.include_router(research.router)
 app.include_router(manual.router)
 app.include_router(tool_recognition.router)
 
@@ -31,10 +30,8 @@ async def root():
         "message": "Toolify API is running",
         "version": "1.0.0",
         "endpoints": {
-            "tool_research": "/api/tool-research",
             "generate_manual": "/api/generate-manual",
             "generate_safety_guide": "/api/generate-safety-guide",
-            "quick_summary": "/api/generate-quick-summary",
             "recognize_tool": "/api/recognize-tool"
         }
     }
