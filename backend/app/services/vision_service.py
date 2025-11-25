@@ -1,4 +1,3 @@
-
 import google.generativeai as genai
 from PIL import Image
 import io
@@ -20,7 +19,12 @@ def recognize_tools_in_image(image_bytes: bytes) -> Optional[str]:
     try:
         model = genai.GenerativeModel(settings.gemini_model)
         image = Image.open(io.BytesIO(image_bytes))
-        prompt = "Analyze the image and identify any tool detected, closest to the camera. Return the specific name of the tool you find, and nothing else. If no tool is found, return what you think the image is of.(A tool can also just be a regular object)"
+        prompt = (
+            "Analyze the image and identify any tool or object detected, closest to the camera. "
+            "Return the most specific name and type you can. "
+            "Return only the specific name and type, nothing else. "
+            "If no tool or object is found, return nothing"
+        )
         response = model.generate_content([prompt, image])
         
         tool_name = response.text.strip()
