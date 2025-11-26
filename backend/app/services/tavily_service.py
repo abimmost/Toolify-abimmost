@@ -1,7 +1,6 @@
 from tavily import TavilyClient
 from app.config import settings
 from app.model.schemas import ToolResearchResponse, ResearchResult, YouTubeLink
-from app.services.tavily_service import tavily_service
 from datetime import datetime
 from typing import Optional
 
