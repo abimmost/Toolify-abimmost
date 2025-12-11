@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { useState, useEffect } from "react";
-import { Sparkles } from "lucide-react";
+import { Sparkles, Wrench } from "lucide-react";
 import { UserButton, SignedIn, SignedOut } from "@clerk/nextjs";
 
 const Navbar = () => {
@@ -30,19 +30,7 @@ const Navbar = () => {
           {/* Logo */}
           <Link href="/" className="flex items-center gap-3 group">
             <div className="relative w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-primary/70 flex items-center justify-center shadow-lg group-hover:shadow-primary/25 transition-all duration-300 group-hover:scale-110">
-              <svg
-                className="w-5 h-5 text-primary-foreground transition-transform duration-300 group-hover:rotate-12"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                strokeWidth={2}
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M11 4a2 2 0 114 0v1a1 1 0 001 1h3a1 1 0 011 1v3a1 1 0 01-1 1h-1a2 2 0 100 4h1a1 1 0 011 1v3a1 1 0 01-1 1h-3a1 1 0 01-1-1v-1a2 2 0 10-4 0v1a1 1 0 01-1 1H7a1 1 0 01-1-1v-3a1 1 0 00-1-1H4a2 2 0 110-4h1a1 1 0 001-1V7a1 1 0 011-1h3a1 1 0 001-1V4z"
-                />
-              </svg>
+              <Wrench className="w-5 h-5 text-primary-foreground transition-transform duration-300 group-hover:rotate-12" />
               <div className="absolute inset-0 rounded-xl bg-primary/20 blur-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
             </div>
             <span className="font-display font-bold text-xl text-foreground group-hover:text-primary transition-colors duration-300">
