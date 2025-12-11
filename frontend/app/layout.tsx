@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { ClerkProvider } from "@clerk/nextjs";
 import { Plus_Jakarta_Sans, Roboto } from "next/font/google";
+import { Providers } from "@/components/Providers";
 import "./globals.css";
 
 const plusJakartaSans = Plus_Jakarta_Sans({
@@ -33,7 +34,7 @@ export default function RootLayout({
         <body
           className={`${roboto.variable} ${plusJakartaSans.variable} font-sans antialiased`}
         >
-          {children}
+          <Providers>{children}</Providers>
         </body>
       </html>
     </ClerkProvider>
