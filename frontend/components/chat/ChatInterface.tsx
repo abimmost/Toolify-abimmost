@@ -3,7 +3,7 @@
 import { ChatInput } from "./ChatInput";
 import { Wrench, Menu } from "lucide-react";
 import { useAuth, useUser } from "@clerk/nextjs";
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { Sidebar } from "./Sidebar";
 import * as api from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -37,14 +37,7 @@ export function ChatInterface() {
     scrollToBottom();
   }, [messages]);
 
-  // Fetch Chats on Mount
-  useEffect(() => {
-    if (userId) {
-      loadChats();
-    }
-  }, [userId]);
-
-  const loadChats = async () => {
+  const loadChats = useCallback(async () => {
     try {
       // Get Clerk token - try standard token first
       const authToken = await getToken();
@@ -61,7 +54,14 @@ export function ChatInterface() {
       // Don't show error to user for background chat loading
       // Just log it for debugging
     }
-  };
+  }, [getToken]);
+
+  // Fetch Chats on Mount
+  useEffect(() => {
+    if (userId) {
+      loadChats();
+    }
+  }, [userId, loadChats]);
 
   const loadChatMessages = async (chatId: string) => {
     setIsLoading(true);
