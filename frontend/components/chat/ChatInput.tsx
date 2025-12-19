@@ -7,18 +7,23 @@ interface ChatInputProps {
     onSend?: (message: string, files?: File[], audioBlob?: Blob) => void;
     onGenerateManual?: () => void;
     isLoading?: boolean;
+    onTyping?: (isTyping: boolean) => void;
 }
 
-export function ChatInput({ onSend, onGenerateManual, isLoading }: ChatInputProps) {
+export function ChatInput({ onSend, onGenerateManual, isLoading, onTyping }: ChatInputProps) {
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [isRecording, setIsRecording] = useState(false);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const [inputValue, setInputValue] = useState("");
     const [showAttachMenu, setShowAttachMenu] = useState(false);
 
+    // ...
 
-
-    // File state
+    const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+        const newValue = e.target.value;
+        setInputValue(newValue);
+        onTyping?.(newValue.length > 0);
+    };
     const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
     const [imagePreviews, setImagePreviews] = useState<string[]>([]);
 
@@ -60,9 +65,7 @@ export function ChatInput({ onSend, onGenerateManual, isLoading }: ChatInputProp
         }
     };
 
-    const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-        setInputValue(e.target.value);
-    };
+
 
     const handleSend = () => {
         const message = inputValue.trim();
@@ -215,10 +218,10 @@ export function ChatInput({ onSend, onGenerateManual, isLoading }: ChatInputProp
                 {/* Glow Effect */}
                 <div className="absolute inset-0 bg-gradient-to-r from-orange-500/20 to-blue-500/20 rounded-xl sm:rounded-2xl blur opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
 
-                <div className="relative bg-card border border-border rounded-xl sm:rounded-2xl shadow-lg ring-1 ring-white/5 overflow-hidden transition-all focus-within:ring-orange-500/50">
+                <div className="relative bg-card border border-border rounded-xl sm:rounded-2xl shadow-lg ring-1 ring-white/5 transition-all focus-within:ring-orange-500/50">
                     {/* Recording Indicator Overlay */}
                     {isRecording && (
-                        <div className="absolute inset-0 bg-red-500/10 backdrop-blur-sm z-10 flex items-center justify-center pointer-events-none">
+                        <div className="absolute inset-0 bg-red-500/10 backdrop-blur-sm z-10 flex items-center justify-center pointer-events-none rounded-xl sm:rounded-2xl">
                             <div className="flex items-center gap-2 bg-red-500 text-white px-4 py-2 rounded-full animate-pulse">
                                 <div className="w-3 h-3 bg-white rounded-full animate-pulse" />
                                 <span className="font-medium">Recording {formatTime(recordingTime)}</span>
@@ -251,7 +254,7 @@ export function ChatInput({ onSend, onGenerateManual, isLoading }: ChatInputProp
 
                             {/* Attach Menu Dropdown */}
                             {showAttachMenu && (
-                                <div className="absolute bottom-full left-0 mb-3 bg-card/95 backdrop-blur-sm border border-border/50 rounded-2xl shadow-2xl p-2 min-w-[220px] z-50 animate-in fade-in slide-in-from-bottom-4 flex flex-col gap-1 ring-1 ring-black/5">
+                                <div className="absolute bottom-[calc(100%+12px)] left-0 bg-card/95 backdrop-blur-sm border border-border/50 rounded-2xl shadow-2xl p-2 min-w-[220px] z-[100] animate-in fade-in slide-in-from-bottom-4 flex flex-col gap-1 ring-1 ring-black/5">
                                     <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                                         Actions
                                     </div>

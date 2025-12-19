@@ -37,6 +37,7 @@ export function ChatInterface() {
   const [showAbout, setShowAbout] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
   const [playingMessageId, setPlayingMessageId] = useState<string | null>(null);
+  const [isTyping, setIsTyping] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -379,7 +380,7 @@ export function ChatInterface() {
             <div className="flex-1 overflow-y-auto w-full px-2 sm:px-3 md:px-4 py-2 sm:py-3 md:py-4 space-y-3 sm:space-y-4 md:space-y-6 scrollbar-hide">
               {messages.length === 0 ? (
                 // Empty State with Greeting
-                <div className="flex flex-col items-center justify-center h-full gap-4 sm:gap-6 md:gap-8 animate-fade-in">
+                <div className={`flex flex-col items-center justify-center h-full gap-4 sm:gap-6 md:gap-8 transition-all duration-500 ease-in-out ${isTyping ? "opacity-0 translate-y-10 scale-95 pointer-events-none" : "opacity-100 animate-fade-in"}`}>
                   <div className="flex flex-col items-center gap-3 sm:gap-4 md:gap-6 px-3 sm:px-4">
                     <div className="w-16 h-16 sm:w-20 sm:h-20 bg-gradient-to-tr from-orange-500 to-orange-600 rounded-3xl flex items-center justify-center shadow-2xl shadow-orange-500/20 mb-2 sm:mb-4 animate-float">
                       <Wrench className="w-8 h-8 sm:w-10 sm:h-10 text-white" />
@@ -495,6 +496,7 @@ export function ChatInterface() {
                 onSend={handleSendMessage}
                 isLoading={isLoading}
                 onGenerateManual={handleGenerateManual}
+                onTyping={setIsTyping}
               />
             </div>
           </div>
