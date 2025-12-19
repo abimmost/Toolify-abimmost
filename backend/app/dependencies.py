@@ -109,6 +109,7 @@ async def get_user_supabase_client(credentials: HTTPAuthorizationCredentials = D
         from app.config import settings
         from supabase import create_client, ClientOptions
         
+        print(f"DEBUG: Creating Supabase client for user with token (first 10 chars): {token[:10]}...")
         client = create_client(
             settings.supabase_url, 
             settings.supabase_anon_key,
@@ -118,6 +119,7 @@ async def get_user_supabase_client(credentials: HTTPAuthorizationCredentials = D
                 }
             )
         )
+        print("DEBUG: Supabase client created successfully")
         return client
     except Exception as e:
         raise HTTPException(

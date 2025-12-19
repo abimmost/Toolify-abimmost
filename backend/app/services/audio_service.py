@@ -1,12 +1,12 @@
 import os
 import tempfile
 import requests
-import google.generativeai as genai
+from google import genai
 from datetime import datetime
 from app.config import settings
 
-# Configure Gemini
-genai.configure(api_key=settings.google_api_key)
+# Initialize Gemini Client
+client = genai.Client(api_key=settings.google_api_key)
 
 # YarnGPT API Configuration
 YARNGPT_API_URL = "https://yarngpt.ai/api/v1/tts"
@@ -145,14 +145,14 @@ class AudioService:
                 temp_audio_path = temp_audio.name
 
             # Upload the file to Gemini
-            uploaded_file = genai.upload_file(temp_audio_path, mime_type=mime_type)
+            uploaded_file = client.files.upload(path=temp_audio_path)
             
             prompt = "Transcribe the following audio exactly as spoken. Do not translate. Return only the transcription."
             
-            response = model.generate_content([prompt, uploaded_file])
-            
-            # Cleanup: Delete the file from Gemini after use (optional but good practice)
-            # genai.delete_file(uploaded_file.name) 
+            response = client.models.generate_content(
+                model=settings.gemini_model,
+                contents=[prompt, uploaded_file]
+            )
             
             return response.text.strip()
             

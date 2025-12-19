@@ -5,7 +5,7 @@ uvicorn
 python-multipart
 pydantic
 pydantic-settings
-google-generativeai
+google-genai
 tavily-python
 requests
 langchain
