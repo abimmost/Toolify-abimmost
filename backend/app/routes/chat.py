@@ -213,26 +213,4 @@ async def get_chat_messages(
         print(f"Error fetching messages: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.post("/generate-tts")
-async def generate_tts(
-    text: str = Form(...),
-    language: str = Form("en"),
-    user: dict = Depends(get_current_user)
-):
-    """Generate text-to-speech audio for a message"""
-    try:
-        from fastapi.responses import StreamingResponse
-        import io
-        
-        # Generate audio using gTTS (actually YarnGPT via audio_service)
-        audio_url = audio_service.generate_audio(
-            text=text,
-            tool_name="chat_message",
-            user_id=str(user.id)
-        )
-        
-        return {"url": audio_url}
-        
-    except Exception as e:
-        print(f"TTS Error: {e}")
-        raise HTTPException(status_code=500, detail=f"TTS generation error: {str(e)}")
+

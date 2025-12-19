@@ -18,6 +18,8 @@ import {
   FileText,
 } from "lucide-react"; // Import new icons
 import { pdf } from "@react-pdf/renderer";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { ManualPDF } from "./ManualPDF";
 import { useClerkSupabaseClient } from "@/lib/supabase";
 import { useAuth, useUser } from "@clerk/nextjs";
@@ -550,8 +552,22 @@ export function ChatInterface() {
                                   : "bg-transparent text-foreground/90"
                               }`}
                             >
-                              <div className="markdown-content whitespace-pre-wrap">
-                                {message.content}
+                              <div className="prose dark:prose-invert max-w-none break-words prose-sm sm:prose-base prose-p:leading-relaxed prose-pre:bg-muted/50 prose-pre:p-4 prose-pre:rounded-lg">
+                                <ReactMarkdown
+                                  remarkPlugins={[remarkGfm]}
+                                  components={{
+                                    a: ({ node, ...props }) => (
+                                      <a
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="text-orange-500 hover:underline break-all"
+                                        {...props}
+                                      />
+                                    ),
+                                  }}
+                                >
+                                  {message.content}
+                                </ReactMarkdown>
                               </div>
                             </div>
                           )}

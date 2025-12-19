@@ -188,13 +188,11 @@ export async function getChatMessages(
 export async function generateManual(
   token: string,
   toolName?: string,
-  file?: File | null,
-  generateAudio: boolean = false
+  file?: File | null
 ): Promise<ManualGenerationResponse> {
   try {
     const formData = new FormData();
     formData.append("language", "en"); // Default
-    formData.append("generate_audio", String(generateAudio));
 
     if (toolName) formData.append("tool_name", toolName);
     if (file) formData.append("file", file);
@@ -202,7 +200,6 @@ export async function generateManual(
     console.log("📤 Requesting manual generation:", {
       hasToolName: !!toolName,
       hasFile: !!file,
-      generateAudio,
     });
 
     const response = await fetch(`${API_URL}/api/generate-manual`, {
