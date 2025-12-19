@@ -242,39 +242,58 @@ export function ChatInput({ onSend, onGenerateManual, isLoading }: ChatInputProp
                         <div className="relative flex gap-1 sm:gap-2">
                             <button
                                 onClick={() => setShowAttachMenu(!showAttachMenu)}
-                                className="p-2 min-h-[40px] min-w-[40px] sm:min-h-[44px] sm:min-w-[44px] flex items-center justify-center rounded-lg hover:bg-muted text-muted-foreground transition-colors"
+                                className="p-2 w-8 h-8 sm:w-10 sm:h-10 flex items-center justify-center rounded-full bg-muted text-muted-foreground hover:bg-muted/80 hover:text-foreground transition-all duration-200"
                                 title="More options"
                                 disabled={isRecording}
                             >
-                                <Plus className="w-4 h-4 sm:w-5 sm:h-5" />
+                                <Plus className="w-5 h-5" />
                             </button>
 
                             {/* Attach Menu Dropdown */}
                             {showAttachMenu && (
-                                <div className="absolute bottom-full left-0 mb-2 bg-card border border-border rounded-lg shadow-lg p-2 min-w-[160px] z-20 animate-in fade-in slide-in-from-bottom-2">
+                                <div className="absolute bottom-full left-0 mb-3 bg-card/95 backdrop-blur-sm border border-border/50 rounded-2xl shadow-2xl p-2 min-w-[220px] z-50 animate-in fade-in slide-in-from-bottom-4 flex flex-col gap-1 ring-1 ring-black/5">
+                                    <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                                        Actions
+                                    </div>
                                     <button
                                         onClick={handleAttachClick}
-                                        className="w-full flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-colors text-sm"
+                                        className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-primary/10 hover:text-primary transition-all text-sm group"
                                     >
-                                        <Paperclip className="w-4 h-4" />
-                                        <span>Attach Files</span>
+                                        <div className="p-1.5 rounded-lg bg-background border border-border group-hover:border-primary/50 transition-colors">
+                                            <Paperclip className="w-4 h-4" />
+                                        </div>
+                                        <div className="flex flex-col items-start">
+                                            <span className="font-medium">Upload Image</span>
+                                            <span className="text-[10px] text-muted-foreground leading-none">Identify tools</span>
+                                        </div>
                                     </button>
-                                    <button
-                                        onClick={() => setShowAttachMenu(false)}
-                                        className="w-full flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-colors text-sm"
-                                    >
-                                        <Globe className="w-4 h-4" />
-                                        <span>Web Search</span>
-                                    </button>
+
                                     <button
                                         onClick={() => {
                                             setShowAttachMenu(false);
                                             onGenerateManual?.();
                                         }}
-                                        className="w-full flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-colors text-sm"
+                                        className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-primary/10 hover:text-primary transition-all text-sm group"
                                     >
-                                        <BookOpen className="w-4 h-4" />
-                                        <span>Generate Manual</span>
+                                        <div className="p-1.5 rounded-lg bg-background border border-border group-hover:border-primary/50 transition-colors">
+                                            <BookOpen className="w-4 h-4" />
+                                        </div>
+                                        <div className="flex flex-col items-start">
+                                            <span className="font-medium">Generate Manual</span>
+                                            <span className="text-[10px] text-muted-foreground leading-none">Create guides</span>
+                                        </div>
+                                    </button>
+
+                                    <div className="h-px bg-border/50 my-1" />
+
+                                    <button
+                                        onClick={() => setShowAttachMenu(false)}
+                                        className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-primary/10 hover:text-primary transition-all text-sm group"
+                                    >
+                                        <div className="p-1.5 rounded-lg bg-background border border-border group-hover:border-primary/50 transition-colors">
+                                            <Globe className="w-4 h-4" />
+                                        </div>
+                                        <span>Web Search</span>
                                     </button>
                                 </div>
                             )}
