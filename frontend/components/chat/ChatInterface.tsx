@@ -212,31 +212,16 @@ export function ChatInterface() {
     }
   };
 
-  const handleGenerateManual = async () => {
+  const handleGenerateManual = async (files?: File[]) => {
     setIsLoading(true);
     try {
       const token = await getToken();
       if (!token) throw new Error("Not authenticated");
 
-      // Note: Ideally pass file from ChatInput, but for now we call API
-      // If we want file support, we need to lift file state or pass it in callback
-      // For now, we'll try to generate manual based on just text or recent context if API supports it,
-      // or just error out/ask for file if needed.
-      // But referencing the previous plan, we wanted to support file upload from the input.
-      // Since we can't easily access ChatInput state here without lifting it, 
-      // we will implement a basic version that triggers the API.
+      // Use the first file if provided, otherwise send null (backend might handle it or error)
+      const fileToUse = files && files.length > 0 ? files[0] : null;
 
-      // We'll pass both toolName and file as undefined/null for now, 
-      // assuming the user might want to generate a manual for a text query they just sent 
-      // OR we might need to handle the file upload separately.
-      // Given constraints, let's assume the user attaches a file in the input 
-      // and clicks "Generate Manual" instead of "Send".
-      // BUT ChatInput handles that logic. If we want to support this fully, 
-      // we'd need ChatInput to pass the file to onGenerateManual.
-      // Let's assume for this iteration we just trigger the "text" based manual or error.
-
-      // BETTER APPROACH: Just call it. If the API requires a file, it will error.
-      const response = await api.generateManual(token, undefined, null);
+      const response = await api.generateManual(token, undefined, fileToUse);
 
       const manualMessage: Message = {
         id: Date.now().toString(),

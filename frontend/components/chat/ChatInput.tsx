@@ -5,12 +5,13 @@ import { useRef, useState, useEffect } from "react";
 
 interface ChatInputProps {
     onSend?: (message: string, files?: File[], audioBlob?: Blob) => void;
-    onGenerateManual?: () => void;
+    onGenerateManual?: (files?: File[]) => void;
     isLoading?: boolean;
     onTyping?: (isTyping: boolean) => void;
 }
 
 export function ChatInput({ onSend, onGenerateManual, isLoading, onTyping }: ChatInputProps) {
+
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [isRecording, setIsRecording] = useState(false);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -274,7 +275,7 @@ export function ChatInput({ onSend, onGenerateManual, isLoading, onTyping }: Cha
                                     <button
                                         onClick={() => {
                                             setShowAttachMenu(false);
-                                            onGenerateManual?.();
+                                            onGenerateManual?.(selectedFiles);
                                         }}
                                         className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-primary/10 hover:text-primary transition-all text-sm group"
                                     >
