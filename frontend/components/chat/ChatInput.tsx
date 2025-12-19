@@ -1,6 +1,15 @@
 "use client";
 
-import { Paperclip, Mic, Globe, Square, X, Send, Plus, BookOpen } from "lucide-react";
+import {
+    Paperclip,
+    Mic,
+    Globe,
+    Square,
+    X,
+    Send,
+    Plus,
+    BookOpen,
+} from "lucide-react";
 import { useRef, useState, useEffect } from "react";
 
 interface ChatInputProps {
@@ -18,13 +27,6 @@ export function ChatInput({ onSend, onGenerateManual, isLoading, onTyping }: Cha
     const [inputValue, setInputValue] = useState("");
     const [showAttachMenu, setShowAttachMenu] = useState(false);
 
-    // ...
-
-    const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-        const newValue = e.target.value;
-        setInputValue(newValue);
-        onTyping?.(newValue.length > 0);
-    };
     const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
     const [imagePreviews, setImagePreviews] = useState<string[]>([]);
 
@@ -66,7 +68,11 @@ export function ChatInput({ onSend, onGenerateManual, isLoading, onTyping }: Cha
         }
     };
 
-
+    const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+        const newValue = e.target.value;
+        setInputValue(newValue);
+        onTyping?.(newValue.length > 0);
+    };
 
     const handleSend = () => {
         const message = inputValue.trim();
@@ -252,8 +258,6 @@ export function ChatInput({ onSend, onGenerateManual, isLoading, onTyping }: Cha
                             >
                                 <Plus className="w-5 h-5" />
                             </button>
-
-
                         </div>
 
                         {/* Right Actions */}
@@ -309,6 +313,9 @@ export function ChatInput({ onSend, onGenerateManual, isLoading, onTyping }: Cha
                             onClick={() => {
                                 setShowAttachMenu(false);
                                 onGenerateManual?.(selectedFiles);
+                                // Clear files after triggering manual generation
+                                setSelectedFiles([]);
+                                setImagePreviews([]);
                             }}
                             className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-primary/10 hover:text-primary transition-all text-sm group"
                         >

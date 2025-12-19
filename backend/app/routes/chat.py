@@ -98,10 +98,8 @@ async def chat(
                         "user_id": str(user.id),
                         "image_path": file_path,
                         "tool_name": tool_name,
-                        "analysis_result": research_results.model_dump(mode='json') if 'research_results' in locals() else None, # Wait, research_response is the object
+                        "analysis_result": research_response.model_dump(mode='json'),
                     }
-                    # Fix: research_response is the Pydantic model
-                    scan_data["analysis_result"] = research_response.model_dump(mode='json')
                     
                     scan_res = supabase_client.table("scans").insert(scan_data).execute()
                     if scan_res.data:
@@ -226,24 +224,14 @@ async def generate_tts(
         from fastapi.responses import StreamingResponse
         import io
         
-        # Generate audio using gTTS
-        tts_audio = audio_service.generate_audio(
+        # Generate audio using gTTS (actually YarnGPT via audio_service)
+        audio_url = audio_service.generate_audio(
             text=text,
             tool_name="chat_message",
-            language=language,
-            tld="com"
+            user_id=str(user.id)
         )
         
-        # Read the file and return as streaming response
-        def iterfile():
-            with open(tts_audio, "rb") as audio_file:
-                yield from audio_file
-        
-        return StreamingResponse(
-            iterfile(),
-            media_type="audio/mpeg",
-            headers={"Content-Disposition": "inline"}
-        )
+        return {"url": audio_url}
         
     except Exception as e:
         print(f"TTS Error: {e}")
