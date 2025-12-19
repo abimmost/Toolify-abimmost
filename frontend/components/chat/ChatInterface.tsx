@@ -51,6 +51,7 @@ export function ChatInterface() {
   const [showAbout, setShowAbout] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
   const [playingMessageId, setPlayingMessageId] = useState<string | null>(null);
+  const [isTyping, setIsTyping] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -249,11 +250,10 @@ export function ChatInterface() {
       const token = await getToken();
       if (!token) throw new Error("Not authenticated");
 
-      const response = await api.generateManual(
-        token,
-        undefined,
-        files && files.length > 0 ? files[0] : null
-      );
+      // Use the first file if provided, otherwise send null (backend might handle it or error)
+      const fileToUse = files && files.length > 0 ? files[0] : null;
+
+      const response = await api.generateManual(token, undefined, fileToUse);
 
       const manualMessage: Message = {
         id: Date.now().toString(),
@@ -379,16 +379,29 @@ export function ChatInterface() {
 
       <div className="flex-1 flex flex-col h-full relative overflow-hidden w-full">
         {/* Header */}
-        <header className="h-14 sm:h-16 border-b border-border flex items-center justify-between px-2 sm:px-4 absolute top-0 w-full bg-background/80 backdrop-blur-md z-10 md:hidden">
-          {/* Mobile Menu Button */}
+        {/* Header - Visible on mobile, and conditionally on desktop when content exists */}
+        <header className={cn(
+          "h-14 sm:h-16 border-b border-border flex items-center px-2 sm:px-4 absolute top-0 w-full bg-background/80 backdrop-blur-md z-10 transition-all duration-500",
+          // Desktop: Hide by default (showing hero), slide in when typing/active
+          (isTyping || messages.length > 0)
+            ? "md:opacity-100 md:translate-y-0"
+            : "md:opacity-0 md:-translate-y-full md:pointer-events-none"
+        )}>
+          {/* Mobile Menu Button - Hidden on Desktop */}
           <button
             onClick={() => setIsSidebarOpen(true)}
-            className="p-2 -ml-2 hover:bg-muted rounded-lg"
+            className="p-2 -ml-2 hover:bg-muted rounded-lg md:hidden"
           >
             <PanelLeft className="w-5 h-5 sm:w-6 sm:h-6" />
           </button>
-          <span className="font-semibold text-sm sm:text-base">Toolify</span>
-          <div className="w-9 sm:w-10" /> {/* Spacer for balance */}
+
+          {/* Title Area - Centered on Desktop, Centered-ish on Mobile */}
+          <div className="flex-1 flex items-center justify-center md:justify-start md:pl-4 gap-2">
+            <Wrench className="w-5 h-5 text-orange-500 hidden md:block" />
+            <span className="font-semibold text-sm sm:text-base">Toolify</span>
+          </div>
+
+          <div className="w-9 sm:w-10 md:hidden" /> {/* Spacer for balance on Mobile */}
         </header>
 
         {/* Main Content Area */}
@@ -398,7 +411,7 @@ export function ChatInterface() {
             <div className="flex-1 overflow-y-auto w-full px-2 sm:px-3 md:px-4 py-2 sm:py-3 md:py-4 space-y-3 sm:space-y-4 md:space-y-6 scrollbar-hide">
               {messages.length === 0 ? (
                 // Empty State with Greeting
-                <div className="flex flex-col items-center justify-center h-full gap-4 sm:gap-6 md:gap-8 animate-fade-in">
+                <div className={`flex flex-col items-center justify-center h-full gap-4 sm:gap-6 md:gap-8 transition-all duration-500 ease-in-out ${isTyping ? "opacity-0 translate-y-10 scale-95 pointer-events-none" : "opacity-100 animate-fade-in"}`}>
                   <div className="flex flex-col items-center gap-3 sm:gap-4 md:gap-6 px-3 sm:px-4">
                     <div className="w-16 h-16 sm:w-20 sm:h-20 bg-gradient-to-tr from-orange-500 to-orange-600 rounded-3xl flex items-center justify-center shadow-2xl shadow-orange-500/20 mb-2 sm:mb-4 animate-float">
                       <Wrench className="w-8 h-8 sm:w-10 sm:h-10 text-white" />
@@ -419,26 +432,23 @@ export function ChatInterface() {
                   {messages.map((message) => (
                     <div
                       key={message.id}
-                      className={`flex w-full ${
-                        message.role === "user"
+                      className={`flex w-full ${message.role === "user"
                           ? "justify-end"
                           : "justify-start"
-                      }`}
+                        }`}
                     >
                       <div
-                        className={`flex gap-3 sm:gap-4 max-w-[95%] sm:max-w-[85%] ${
-                          message.role === "user"
+                        className={`flex gap-3 sm:gap-4 max-w-[95%] sm:max-w-[85%] ${message.role === "user"
                             ? "flex-row-reverse"
                             : "flex-row"
-                        }`}
+                          }`}
                       >
                         {/* Avatar */}
                         <div
-                          className={`mt-1 w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center text-xs shrink-0 select-none ${
-                            message.role === "user"
+                          className={`mt-1 w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center text-xs shrink-0 select-none ${message.role === "user"
                               ? "bg-gradient-to-tr from-orange-500 to-orange-600 text-white shadow-lg shadow-orange-500/20"
                               : "bg-surface-2 border border-border text-foreground"
-                          }`}
+                            }`}
                         >
                           {message.role === "user" ? (
                             <span className="font-bold">You</span>
@@ -475,11 +485,10 @@ export function ChatInterface() {
                           {/* Text Content */}
                           {message.content && (
                             <div
-                              className={`p-3 sm:p-4 rounded-2xl text-sm sm:text-base leading-relaxed ${
-                                message.role === "user"
+                              className={`p-3 sm:p-4 rounded-2xl text-sm sm:text-base leading-relaxed ${message.role === "user"
                                   ? "bg-card border border-orange-500 text-foreground shadow-sm"
                                   : "bg-transparent text-foreground/90"
-                              }`}
+                                }`}
                             >
                               <div className="markdown-content whitespace-pre-wrap">
                                 {message.content}
@@ -493,11 +502,10 @@ export function ChatInterface() {
                               onClick={() =>
                                 handlePlayAudio(message.id!, message.content)
                               }
-                              className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs sm:text-sm transition-all self-start ${
-                                playingMessageId === message.id
+                              className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs sm:text-sm transition-all self-start ${playingMessageId === message.id
                                   ? "bg-orange-500/20 text-orange-500 hover:bg-orange-500/30"
                                   : "bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground"
-                              }`}
+                                }`}
                               title={
                                 playingMessageId === message.id
                                   ? "Stop audio"
@@ -541,6 +549,7 @@ export function ChatInterface() {
                 onSend={handleSendMessage}
                 isLoading={isLoading}
                 onGenerateManual={handleGenerateManual}
+                onTyping={setIsTyping}
               />
             </div>
           </div>
