@@ -1,10 +1,11 @@
-import google.generativeai as genai
+from google import genai
 from PIL import Image
 import io
 from typing import Optional
 from app.config import settings
 
-genai.configure(api_key=settings.google_api_key)
+# Initialize Gemini Client
+client = genai.Client(api_key=settings.google_api_key)
 
 def recognize_tools_in_image(image_bytes: bytes) -> Optional[str]:
     """
@@ -17,7 +18,6 @@ def recognize_tools_in_image(image_bytes: bytes) -> Optional[str]:
         The name of the tool found in the image, or None.
     """
     try:
-        model = genai.GenerativeModel(settings.gemini_model)
         image = Image.open(io.BytesIO(image_bytes))
         prompt = (
             "Analyze the image and identify any tool or object detected, closest to the camera. "
@@ -25,7 +25,10 @@ def recognize_tools_in_image(image_bytes: bytes) -> Optional[str]:
             "Return only the specific name and type, nothing else. "
             "If no tool or object is found, return nothing"
         )
-        response = model.generate_content([prompt, image])
+        response = client.models.generate_content(
+            model=settings.gemini_model,
+            contents=[prompt, image]
+        )
         
         tool_name = response.text.strip()
         return tool_name if tool_name else None
@@ -44,10 +47,12 @@ def describe_image(image_bytes: bytes) -> Optional[str]:
         A text description of the image, or None if an error occurs.
     """
     try:
-        model = genai.GenerativeModel(settings.gemini_model)
         image = Image.open(io.BytesIO(image_bytes))
         prompt = "Describe what you see in this image in a concise but detailed way."
-        response = model.generate_content([prompt, image])
+        response = client.models.generate_content(
+            model=settings.gemini_model,
+            contents=[prompt, image]
+        )
         
         description = response.text.strip()
         return description if description else None
