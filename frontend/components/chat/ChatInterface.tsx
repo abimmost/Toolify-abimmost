@@ -521,7 +521,15 @@ export function ChatInterface() {
         <div className="flex-1 flex flex-col items-center justify-center p-2 sm:p-3 md:p-4 w-full max-w-5xl mx-auto overflow-hidden mt-14 sm:mt-16 md:mt-0">
           <div className="flex flex-col w-full h-full relative">
             {/* Chat Messages Area */}
-            <div className="flex-1 overflow-y-auto w-full px-2 sm:px-3 md:px-4 py-2 sm:py-3 md:py-4 space-y-3 sm:space-y-4 md:space-y-6 scrollbar-hide">
+            <div
+              className={cn(
+                "flex-1 overflow-y-auto w-full px-2 sm:px-3 md:px-4 space-y-3 sm:space-y-4 md:space-y-6 scrollbar-hide",
+                // Add top padding when messages exist to prevent header overlap
+                messages.length > 0
+                  ? "py-2 sm:py-3 md:pt-20 md:pb-4"
+                  : "py-2 sm:py-3 md:py-4"
+              )}
+            >
               {messages.length === 0 ? (
                 // Empty State with Greeting
                 <div
