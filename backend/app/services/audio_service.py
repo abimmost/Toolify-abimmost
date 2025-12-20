@@ -192,8 +192,9 @@ class AudioService:
             
             # Wait for file to be processed (ACTIVE state)
             import time
-            max_wait = 30  # Maximum 30 seconds
+            max_wait = 60  # Increased to 60 seconds
             wait_time = 0
+            poll_interval = 1
             
             logger.info(f"[TRANSCRIBE] Waiting for file to reach ACTIVE state (current: {uploaded_file.state.name})...")
             print(f"[TRANSCRIBE] Waiting for file to reach ACTIVE state (current: {uploaded_file.state.name})...")
@@ -205,9 +206,27 @@ class AudioService:
                     print(f"[TRANSCRIBE] Error: {error_msg}")
                     raise Exception(error_msg)
                 
-                time.sleep(1)
-                wait_time += 1
-                uploaded_file = client.files.get(name=uploaded_file.name)
+                time.sleep(poll_interval)
+                wait_time += poll_interval
+                
+                # Robust polling with retries for the GET call
+                max_retries = 3
+                for attempt in range(max_retries):
+                    try:
+                        uploaded_file = client.files.get(name=uploaded_file.name)
+                        break # Success
+                    except Exception as poll_error:
+                        is_last_attempt = (attempt == max_retries - 1)
+                        error_type = type(poll_error).__name__
+                        logger.warning(f"[TRANSCRIBE] Polling attempt {attempt+1} failed: {error_type}: {str(poll_error)}")
+                        print(f"[TRANSCRIBE] Warning: Polling attempt {attempt+1} failed: {error_type}")
+                        
+                        if is_last_attempt:
+                            logger.error("[TRANSCRIBE] All polling retries failed.")
+                            raise # Re-raise the last error if all retries fail
+                        
+                        # Exponential backoff for the retry itself
+                        time.sleep(2 ** attempt) 
                 
                 if wait_time % 5 == 0:  # Log every 5 seconds
                     logger.info(f"[TRANSCRIBE] Still waiting... ({wait_time}s elapsed, state: {uploaded_file.state.name})")
@@ -221,31 +240,37 @@ class AudioService:
             logger.info(f"[TRANSCRIBE] Sending transcription request to Gemini (model: {settings.gemini_model})...")
             print(f"[TRANSCRIBE] Sending transcription request to Gemini (model: {settings.gemini_model})...")
             
-            try:
-                response = client.models.generate_content(
-                    model=settings.gemini_model,
-                    contents=[prompt, uploaded_file]
-                )
-                logger.info(f"[TRANSCRIBE] Received response from Gemini API")
-                print(f"[TRANSCRIBE] Received response from Gemini API")
-                
-                # Log response structure for debugging
+            # Robust generation with retries
+            max_gen_retries = 3
+            response = None
+            for attempt in range(max_gen_retries):
+                try:
+                    response = client.models.generate_content(
+                        model=settings.gemini_model,
+                        contents=[prompt, uploaded_file]
+                    )
+                    logger.info(f"[TRANSCRIBE] Received response from Gemini API")
+                    print(f"[TRANSCRIBE] Received response from Gemini API")
+                    break # Success
+                except Exception as api_error:
+                    is_last_attempt = (attempt == max_gen_retries - 1)
+                    error_type = type(api_error).__name__
+                    logger.warning(f"[TRANSCRIBE] Generation attempt {attempt+1} failed: {error_type}: {str(api_error)}")
+                    print(f"[TRANSCRIBE] Warning: Generation attempt {attempt+1} failed: {error_type}")
+                    
+                    if is_last_attempt:
+                        logger.error("[TRANSCRIBE] All generation retries failed.")
+                        raise # Re-raise if all retries fail
+                    
+                    time.sleep(2 ** attempt) # Exponential backoff
+            
+            # Log response structure for debugging
+            if response:
                 logger.info(f"[TRANSCRIBE] Response type: {type(response)}")
                 logger.info(f"[TRANSCRIBE] Response attributes: {dir(response)}")
                 print(f"[TRANSCRIBE] Response type: {type(response)}")
                 print(f"[TRANSCRIBE] Response has 'text' attr: {hasattr(response, 'text')}")
                 print(f"[TRANSCRIBE] Response has 'candidates' attr: {hasattr(response, 'candidates')}")
-                
-            except Exception as api_error:
-                logger.error(f"[TRANSCRIBE] API request failed: {type(api_error).__name__}: {str(api_error)}")
-                print(f"[TRANSCRIBE] API request failed: {type(api_error).__name__}: {str(api_error)}")
-                
-                # Try to extract more details from the error
-                if hasattr(api_error, '__dict__'):
-                    logger.error(f"[TRANSCRIBE] Error details: {api_error.__dict__}")
-                    print(f"[TRANSCRIBE] Error details: {api_error.__dict__}")
-                
-                raise
             
             # Check if response has text
             try:
