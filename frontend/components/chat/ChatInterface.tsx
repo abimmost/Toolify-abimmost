@@ -15,8 +15,13 @@ import {
   Info,
   BookOpen,
   StopCircle,
-  Download,
+  FileText,
 } from "lucide-react"; // Import new icons
+import { pdf } from "@react-pdf/renderer";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import { ManualPDF } from "./ManualPDF";
+import { useClerkSupabaseClient } from "@/lib/supabase";
 import { useAuth, useUser } from "@clerk/nextjs";
 import { useState, useRef, useEffect, useCallback } from "react";
 import { Sidebar } from "./Sidebar";
@@ -29,7 +34,7 @@ interface Message {
   content: string;
   imageUrl?: string; // For displaying uploaded images
   audioUrl?: string; // For displaying sent audio
-  pdfUrl?: string; // For PDF manuals
+  pdfUrl?: string; // For displaying generated PDF
 }
 
 interface ManualMessage extends Message {
@@ -41,6 +46,7 @@ export function ChatInterface() {
   const { user, isLoaded } = useUser();
   // CRITICAL: useAuth provides the authentication state and methods to get tokens
   const { getToken, userId } = useAuth();
+  const supabase = useClerkSupabaseClient();
 
   // State
   const [messages, setMessages] = useState<Message[]>([]);
@@ -54,6 +60,10 @@ export function ChatInterface() {
   const [showHelp, setShowHelp] = useState(false);
   const [playingMessageId, setPlayingMessageId] = useState<string | null>(null);
   const [isTyping, setIsTyping] = useState(false);
+
+  const [generatingMessageIds, setGeneratingMessageIds] = useState<Set<string>>(
+    new Set()
+  );
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -114,6 +124,7 @@ export function ChatInterface() {
             id: m.id || Date.now().toString(),
             role: m.role,
             content: m.content,
+            audioUrl: (m as any).audio_url, // Load persisted audio URL
           }))
         );
         setCurrentChatId(chatId);
@@ -122,6 +133,31 @@ export function ChatInterface() {
       console.error("Failed to load messages:", error);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const generateAudioForMessage = async (
+    messageId: string,
+    content: string
+  ) => {
+    try {
+      setGeneratingMessageIds((prev) => new Set(prev).add(messageId));
+      const token = await getToken();
+      if (!token) return;
+
+      const audioUrl = await api.generateTTS(token, content, "en", messageId);
+
+      setMessages((prev) =>
+        prev.map((msg) => (msg.id === messageId ? { ...msg, audioUrl } : msg))
+      );
+    } catch (error) {
+      console.error("Failed to generate audio:", error);
+    } finally {
+      setGeneratingMessageIds((prev) => {
+        const next = new Set(prev);
+        next.delete(messageId);
+        return next;
+      });
     }
   };
 
@@ -180,13 +216,17 @@ export function ChatInterface() {
       );
 
       // Response structure: { content: "...", session_id: "...", ... }
+      const aiMessageId = (Date.now() + 1).toString();
       const aiMessage: Message = {
-        id: (Date.now() + 1).toString(),
+        id: aiMessageId,
         role: "assistant",
         content: response.content,
       };
 
       setMessages((prev) => [...prev, aiMessage]);
+
+      // Trigger auto-audio generation
+      generateAudioForMessage(aiMessageId, response.content);
 
       // If it was a new chat, update session and list
       if (response.session_id && response.session_id !== currentChatId) {
@@ -255,25 +295,70 @@ export function ChatInterface() {
       // Use the first file if provided, otherwise send null (backend might handle it or error)
       const fileToUse = files && files.length > 0 ? files[0] : null;
 
-      const response = await api.generateManual(token, undefined, fileToUse);
+      const response = await api.generateManual(
+        token,
+        undefined,
+        fileToUse,
+        currentChatId || undefined
+      );
 
+      // If it was a new chat, update session and list
+      if (response.session_id && response.session_id !== currentChatId) {
+        setCurrentChatId(response.session_id);
+        loadChats(); // Refresh list to show new chat title
+      }
+
+      // Generate PDF
+      let pdfUrl: string | undefined = undefined;
+      try {
+        // 1. Generate PDF blob
+        const blob = await pdf(
+          <ManualPDF
+            content={response.manual} // Use full manual content for PDF
+            toolName={response.tool_name}
+          />
+        ).toBlob();
+
+        // 2. Upload to Supabase
+        if (userId) {
+          const filename = `manual_${Date.now()}.pdf`;
+          const { error: uploadError } = await supabase.storage
+            .from("tool-manuals")
+            .upload(`${userId}/${filename}`, blob, {
+              contentType: "application/pdf",
+              upsert: true,
+            });
+
+          if (uploadError) {
+            console.error("Failed to upload PDF:", uploadError);
+          } else {
+            // 3. Get public URL
+            const {
+              data: { publicUrl },
+            } = supabase.storage
+              .from("tool-manuals")
+              .getPublicUrl(`${userId}/${filename}`);
+            pdfUrl = publicUrl;
+          }
+        }
+      } catch (pdfError) {
+        console.error("Failed to generate/upload PDF:", pdfError);
+        // Don't fail the whole request if PDF fails, just log it
+      }
+
+      const manualMessageId = Date.now().toString();
       const manualMessage: Message = {
-        id: Date.now().toString(),
+        id: manualMessageId,
         role: "assistant",
-        content: `### 📘 Manual: ${response.tool_name}
-
-> **Quick Summary**
-> ${response.summary}
-
----
-
-#### 📖 Detailed Guide
-${response.manual}`,
+        content: response.summary, // Display summary in chat
         audioUrl: response.audio_files?.url,
-        pdfUrl: response.pdf_url,
+        pdfUrl: pdfUrl,
       };
 
       setMessages((prev) => [...prev, manualMessage]);
+
+      // Trigger auto-audio generation for manual summary
+      generateAudioForMessage(manualMessageId, response.summary);
     } catch (error) {
       console.error("Failed to generate manual:", error);
       setMessages((prev) => [
@@ -290,7 +375,11 @@ ${response.manual}`,
     }
   };
 
-  const handlePlayAudio = async (messageId: string, content: string) => {
+  const handlePlayAudio = async (
+    messageId: string,
+    content: string,
+    existingUrl?: string
+  ) => {
     try {
       // If already playing this message, stop it
       if (playingMessageId === messageId && audioRef.current) {
@@ -304,21 +393,29 @@ ${response.manual}`,
         audioRef.current.pause();
       }
 
-      // Get auth token
-      const token = await getToken();
-      if (!token) {
-        console.error("No auth token available");
-        return;
-      }
-
       // Set loading state
       setPlayingMessageId(messageId);
 
-      // Call backend TTS endpoint using api helper
-      const audioUrl = await api.generateTTS(token, content);
+      let audioUrl = existingUrl;
+
+      if (!audioUrl) {
+        // Get auth token
+        const token = await getToken();
+        if (!token) {
+          console.error("No auth token available");
+          return;
+        }
+        // Call backend TTS endpoint using api helper
+        audioUrl = await api.generateTTS(token, content, "en", messageId);
+
+        // Update message with new audio URL to avoid re-fetching
+        setMessages((prev) =>
+          prev.map((msg) => (msg.id === messageId ? { ...msg, audioUrl } : msg))
+        );
+      }
 
       // Play audio
-      if (audioRef.current) {
+      if (audioRef.current && audioUrl) {
         audioRef.current.src = audioUrl;
         audioRef.current.onended = () => {
           setPlayingMessageId(null);
@@ -375,10 +472,14 @@ ${response.manual}`,
       )}
 
       {/* Expand Sidebar Button (Desktop only, when collapsed) */}
-      <div className={cn(
-        "absolute top-4 left-4 z-20 hidden md:block transition-opacity duration-300",
-        isSidebarCollapsed ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"
-      )}>
+      <div
+        className={cn(
+          "absolute top-4 left-4 z-20 hidden md:block transition-opacity duration-300",
+          isSidebarCollapsed
+            ? "opacity-100 pointer-events-auto"
+            : "opacity-0 pointer-events-none"
+        )}
+      >
         <button
           onClick={() => setIsSidebarCollapsed(false)}
           className="p-2 bg-card border border-border rounded-lg shadow-sm hover:bg-muted text-muted-foreground hover:text-foreground transition-all"
@@ -391,13 +492,15 @@ ${response.manual}`,
       <div className="flex-1 flex flex-col h-full relative overflow-hidden w-full">
         {/* Header */}
         {/* Header - Visible on mobile, and conditionally on desktop when content exists */}
-        <header className={cn(
-          "h-14 sm:h-16 border-b border-border flex items-center px-2 sm:px-4 absolute top-0 w-full bg-background/80 backdrop-blur-md z-10 transition-all duration-500",
-          // Desktop: Hide by default (showing hero), slide in when typing/active
-          (isTyping || messages.length > 0)
-            ? "md:opacity-100 md:translate-y-0"
-            : "md:opacity-0 md:-translate-y-full md:pointer-events-none"
-        )}>
+        <header
+          className={cn(
+            "h-14 sm:h-16 border-b border-border flex items-center px-2 sm:px-4 absolute top-0 w-full bg-background/80 backdrop-blur-md z-10 transition-all duration-500",
+            // Desktop: Hide by default (showing hero), slide in when typing/active
+            isTyping || messages.length > 0
+              ? "md:opacity-100 md:translate-y-0"
+              : "md:opacity-0 md:-translate-y-full md:pointer-events-none"
+          )}
+        >
           {/* Mobile Menu Button - Hidden on Desktop */}
           <button
             onClick={() => setIsSidebarOpen(true)}
@@ -405,14 +508,13 @@ ${response.manual}`,
           >
             <PanelLeft className="w-5 h-5 sm:w-6 sm:h-6" />
           </button>
-
           {/* Title Area - Centered on Desktop, Centered-ish on Mobile */}
           <div className="flex-1 flex items-center justify-center md:justify-start md:pl-4 gap-2">
             <Wrench className="w-5 h-5 text-orange-500 hidden md:block" />
             <span className="font-semibold text-sm sm:text-base">Toolify</span>
           </div>
-
-          <div className="w-9 sm:w-10 md:hidden" /> {/* Spacer for balance on Mobile */}
+          <div className="w-9 sm:w-10 md:hidden" />{" "}
+          {/* Spacer for balance on Mobile */}
         </header>
 
         {/* Main Content Area */}
@@ -422,7 +524,13 @@ ${response.manual}`,
             <div className="flex-1 overflow-y-auto w-full px-2 sm:px-3 md:px-4 py-2 sm:py-3 md:py-4 space-y-3 sm:space-y-4 md:space-y-6 scrollbar-hide">
               {messages.length === 0 ? (
                 // Empty State with Greeting
-                <div className={`flex flex-col items-center justify-center h-full gap-4 sm:gap-6 md:gap-8 transition-all duration-500 ease-in-out ${isTyping ? "opacity-0 translate-y-10 scale-95 pointer-events-none" : "opacity-100 animate-fade-in"}`}>
+                <div
+                  className={`flex flex-col items-center justify-center h-full gap-4 sm:gap-6 md:gap-8 transition-all duration-500 ease-in-out ${
+                    isTyping
+                      ? "opacity-0 translate-y-10 scale-95 pointer-events-none"
+                      : "opacity-100 animate-fade-in"
+                  }`}
+                >
                   <div className="flex flex-col items-center gap-3 sm:gap-4 md:gap-6 px-3 sm:px-4">
                     <div className="w-16 h-16 sm:w-20 sm:h-20 bg-gradient-to-tr from-orange-500 to-orange-600 rounded-3xl flex items-center justify-center shadow-2xl shadow-orange-500/20 mb-2 sm:mb-4 animate-float">
                       <Wrench className="w-8 h-8 sm:w-10 sm:h-10 text-white" />
@@ -443,23 +551,26 @@ ${response.manual}`,
                   {messages.map((message) => (
                     <div
                       key={message.id}
-                      className={`flex w-full ${message.role === "user"
-                        ? "justify-end"
-                        : "justify-start"
-                        }`}
+                      className={`flex w-full ${
+                        message.role === "user"
+                          ? "justify-end"
+                          : "justify-start"
+                      }`}
                     >
                       <div
-                        className={`flex gap-3 sm:gap-4 max-w-[95%] sm:max-w-[85%] ${message.role === "user"
-                          ? "flex-row-reverse"
-                          : "flex-row"
-                          }`}
+                        className={`flex gap-3 sm:gap-4 max-w-[95%] sm:max-w-[85%] ${
+                          message.role === "user"
+                            ? "flex-row-reverse"
+                            : "flex-row"
+                        }`}
                       >
                         {/* Avatar */}
                         <div
-                          className={`mt-1 w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center text-xs shrink-0 select-none ${message.role === "user"
-                            ? "bg-gradient-to-tr from-orange-500 to-orange-600 text-white shadow-lg shadow-orange-500/20"
-                            : "bg-surface-2 border border-border text-foreground"
-                            }`}
+                          className={`mt-1 w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center text-xs shrink-0 select-none ${
+                            message.role === "user"
+                              ? "bg-gradient-to-tr from-orange-500 to-orange-600 text-white shadow-lg shadow-orange-500/20"
+                              : "bg-surface-2 border border-border text-foreground"
+                          }`}
                         >
                           {message.role === "user" ? (
                             <span className="font-bold">You</span>
@@ -481,8 +592,8 @@ ${response.manual}`,
                             </div>
                           )}
 
-                          {/* Audio Player (Sent Audio) */}
-                          {message.audioUrl && (
+                          {/* Audio Player (Sent Audio - User only) */}
+                          {message.audioUrl && message.role === "user" && (
                             <div className="p-3 bg-muted/50 rounded-xl border border-border">
                               <audio
                                 controls
@@ -496,59 +607,88 @@ ${response.manual}`,
                           {/* Text Content */}
                           {message.content && (
                             <div
-                              className={`p-3 sm:p-4 rounded-2xl text-sm sm:text-base leading-relaxed ${message.role === "user"
-                                ? "bg-card border border-orange-500 text-foreground shadow-sm"
-                                : "bg-transparent text-foreground/90"
-                                }`}
+                              className={`p-3 sm:p-4 rounded-2xl text-sm sm:text-base leading-relaxed ${
+                                message.role === "user"
+                                  ? "bg-card border border-orange-500 text-foreground shadow-sm"
+                                  : "bg-transparent text-foreground/90"
+                              }`}
                             >
-                              <div className="markdown-content whitespace-pre-wrap">
-                                {message.content}
+                              <div className="prose dark:prose-invert max-w-none break-words prose-sm sm:prose-base prose-p:leading-relaxed prose-pre:bg-muted/50 prose-pre:p-4 prose-pre:rounded-lg">
+                                <ReactMarkdown
+                                  remarkPlugins={[remarkGfm]}
+                                  components={{
+                                    a: ({ node, ...props }) => (
+                                      <a
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="text-orange-500 hover:underline break-all"
+                                        {...props}
+                                      />
+                                    ),
+                                  }}
+                                >
+                                  {message.content}
+                                </ReactMarkdown>
                               </div>
                             </div>
                           )}
 
                           {/* Audio button for AI messages (YarnGPT) */}
                           {message.role === "assistant" && (
-                            <button
-                              onClick={() =>
-                                handlePlayAudio(message.id!, message.content)
-                              }
-                              className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs sm:text-sm transition-all self-start ${playingMessageId === message.id
-                                ? "bg-orange-500/20 text-orange-500 hover:bg-orange-500/30"
-                                : "bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground"
+                            <div className="flex flex-wrap gap-2 mt-2">
+                              {/* Audio Button */}
+                              <button
+                                onClick={() =>
+                                  handlePlayAudio(
+                                    message.id!,
+                                    message.content,
+                                    message.audioUrl
+                                  )
+                                }
+                                disabled={generatingMessageIds.has(message.id)}
+                                className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs sm:text-sm transition-all ${
+                                  playingMessageId === message.id
+                                    ? "bg-orange-500/20 text-orange-500 hover:bg-orange-500/30"
+                                    : "bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground"
                                 }`}
-                              title={
-                                playingMessageId === message.id
-                                  ? "Stop audio"
-                                  : "Play audio (YarnGPT)"
-                              }
-                            >
-                              {playingMessageId === message.id ? (
-                                <>
-                                  <StopCircle className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                                  <span>Stop</span>
-                                </>
-                              ) : (
-                                <>
-                                  <Volume2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                                  <span>Listen</span>
-                                </>
-                              )}
-                            </button>
-                          )}
+                                title={
+                                  playingMessageId === message.id
+                                    ? "Stop audio"
+                                    : "Play audio (YarnGPT)"
+                                }
+                              >
+                                {generatingMessageIds.has(message.id) ? (
+                                  <>
+                                    <div className="w-3.5 h-3.5 sm:w-4 sm:h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                                    <span>Generating...</span>
+                                  </>
+                                ) : playingMessageId === message.id ? (
+                                  <>
+                                    <StopCircle className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                                    <span>Stop</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <Volume2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                                    <span>Listen</span>
+                                  </>
+                                )}
+                              </button>
 
-                          {/* PDF Download Button */}
-                          {message.pdfUrl && (
-                            <a
-                              href={message.pdfUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs sm:text-sm transition-all self-start bg-blue-500/10 text-blue-600 hover:bg-blue-500/20 border border-blue-500/20 mt-2"
-                              title="Download PDF Manual"
-                            >
-                              <Download className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                              <span className="underline">Download PDF Manual</span>
-                            </a>
+                              {/* PDF Download Button */}
+                              {message.pdfUrl && (
+                                <a
+                                  href={message.pdfUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs sm:text-sm transition-all bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground"
+                                  title="Download Manual PDF"
+                                >
+                                  <FileText className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                                  <span>Download PDF</span>
+                                </a>
+                              )}
+                            </div>
                           )}
                         </div>
                       </div>
