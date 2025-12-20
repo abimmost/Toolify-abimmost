@@ -163,7 +163,22 @@ class AudioService:
                 contents=[prompt, uploaded_file]
             )
             
-            return response.text.strip()
+            # Check if response has text
+            try:
+                if hasattr(response, 'text') and response.text:
+                    return response.text.strip()
+                else:
+                    print(f"Transcription Warning: No text in response.")
+                    return ""
+            except Exception as text_error:
+                print(f"Transcription Warning: Error accessing response.text: {text_error}")
+                # Try accessing via candidates if available
+                try:
+                    if hasattr(response, 'candidates') and response.candidates:
+                        return response.candidates[0].content.parts[0].text.strip()
+                except:
+                    pass
+                return ""
             
         except Exception as e:
             print(f"Transcription Error: {e}")
