@@ -299,7 +299,7 @@ export function ChatInput({
                 onClick={() => setIsManualMode(!isManualMode)}
                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs sm:text-sm font-medium transition-all duration-200 border ${
                   isManualMode
-                    ? "bg-orange-500/10 text-orange-600 border-orange-500/20"
+                    ? "bg-orange-500/0 text-orange-600 border-orange-500/20"
                     : "bg-muted/50 text-muted-foreground border-transparent hover:bg-muted hover:text-foreground hover:border-border"
                 }`}
                 title="Generate Manual"
