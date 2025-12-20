@@ -122,8 +122,23 @@ class AudioService:
         Returns:
             The transcribed text.
         """
+        import logging
+        logger = logging.getLogger(__name__)
+        
         temp_audio_path = None
+        uploaded_file_name = None
+        
         try:
+            # Log input details
+            audio_size = len(audio_bytes)
+            logger.info(f"[TRANSCRIBE] Starting transcription - Audio size: {audio_size} bytes, MIME type: {mime_type}")
+            print(f"[TRANSCRIBE] Starting transcription - Audio size: {audio_size} bytes, MIME type: {mime_type}")
+            
+            if audio_size == 0:
+                logger.error("[TRANSCRIBE] Audio bytes are empty!")
+                print("[TRANSCRIBE] Error: Audio bytes are empty!")
+                return ""
+            
             # Determine extension from mime_type
             ext = ".mp3"
             if "wav" in mime_type:
@@ -137,55 +152,168 @@ class AudioService:
             elif "webm" in mime_type:
                 ext = ".webm"
             
+            logger.info(f"[TRANSCRIBE] Determined file extension: {ext}")
+            print(f"[TRANSCRIBE] Determined file extension: {ext}")
+            
             # Create a temporary file to store the audio
+            logger.info("[TRANSCRIBE] Creating temporary file...")
+            print("[TRANSCRIBE] Creating temporary file...")
+            
             with tempfile.NamedTemporaryFile(delete=False, suffix=ext) as temp_audio:
                 temp_audio.write(audio_bytes)
                 temp_audio_path = temp_audio.name
+            
+            logger.info(f"[TRANSCRIBE] Temporary file created at: {temp_audio_path}")
+            print(f"[TRANSCRIBE] Temporary file created at: {temp_audio_path}")
+            
+            # Verify file was written correctly
+            if not os.path.exists(temp_audio_path):
+                logger.error(f"[TRANSCRIBE] Temporary file does not exist after creation: {temp_audio_path}")
+                print(f"[TRANSCRIBE] Error: Temporary file does not exist after creation: {temp_audio_path}")
+                return ""
+            
+            file_size = os.path.getsize(temp_audio_path)
+            logger.info(f"[TRANSCRIBE] Temporary file size: {file_size} bytes")
+            print(f"[TRANSCRIBE] Temporary file size: {file_size} bytes")
 
             # Upload the file to Gemini
-            uploaded_file = client.files.upload(file=temp_audio_path)
+            logger.info("[TRANSCRIBE] Uploading file to Gemini API...")
+            print("[TRANSCRIBE] Uploading file to Gemini API...")
+            
+            try:
+                uploaded_file = client.files.upload(file=temp_audio_path)
+                uploaded_file_name = uploaded_file.name
+                logger.info(f"[TRANSCRIBE] File uploaded successfully. Name: {uploaded_file_name}, State: {uploaded_file.state.name}")
+                print(f"[TRANSCRIBE] File uploaded successfully. Name: {uploaded_file_name}, State: {uploaded_file.state.name}")
+            except Exception as upload_error:
+                logger.error(f"[TRANSCRIBE] File upload failed: {type(upload_error).__name__}: {str(upload_error)}")
+                print(f"[TRANSCRIBE] File upload failed: {type(upload_error).__name__}: {str(upload_error)}")
+                raise
             
             # Wait for file to be processed (ACTIVE state)
             import time
             max_wait = 30  # Maximum 30 seconds
             wait_time = 0
+            
+            logger.info(f"[TRANSCRIBE] Waiting for file to reach ACTIVE state (current: {uploaded_file.state.name})...")
+            print(f"[TRANSCRIBE] Waiting for file to reach ACTIVE state (current: {uploaded_file.state.name})...")
+            
             while uploaded_file.state.name != "ACTIVE":
                 if wait_time >= max_wait:
-                    raise Exception(f"File processing timeout. State: {uploaded_file.state.name}")
+                    error_msg = f"File processing timeout after {max_wait}s. Final state: {uploaded_file.state.name}"
+                    logger.error(f"[TRANSCRIBE] {error_msg}")
+                    print(f"[TRANSCRIBE] Error: {error_msg}")
+                    raise Exception(error_msg)
+                
                 time.sleep(1)
                 wait_time += 1
                 uploaded_file = client.files.get(name=uploaded_file.name)
+                
+                if wait_time % 5 == 0:  # Log every 5 seconds
+                    logger.info(f"[TRANSCRIBE] Still waiting... ({wait_time}s elapsed, state: {uploaded_file.state.name})")
+                    print(f"[TRANSCRIBE] Still waiting... ({wait_time}s elapsed, state: {uploaded_file.state.name})")
+            
+            logger.info(f"[TRANSCRIBE] File is ACTIVE after {wait_time}s")
+            print(f"[TRANSCRIBE] File is ACTIVE after {wait_time}s")
             
             prompt = "Transcribe the following audio exactly as spoken. Do not translate. Return only the transcription."
             
-            response = client.models.generate_content(
-                model=settings.gemini_model,
-                contents=[prompt, uploaded_file]
-            )
+            logger.info(f"[TRANSCRIBE] Sending transcription request to Gemini (model: {settings.gemini_model})...")
+            print(f"[TRANSCRIBE] Sending transcription request to Gemini (model: {settings.gemini_model})...")
+            
+            try:
+                response = client.models.generate_content(
+                    model=settings.gemini_model,
+                    contents=[prompt, uploaded_file]
+                )
+                logger.info(f"[TRANSCRIBE] Received response from Gemini API")
+                print(f"[TRANSCRIBE] Received response from Gemini API")
+                
+                # Log response structure for debugging
+                logger.info(f"[TRANSCRIBE] Response type: {type(response)}")
+                logger.info(f"[TRANSCRIBE] Response attributes: {dir(response)}")
+                print(f"[TRANSCRIBE] Response type: {type(response)}")
+                print(f"[TRANSCRIBE] Response has 'text' attr: {hasattr(response, 'text')}")
+                print(f"[TRANSCRIBE] Response has 'candidates' attr: {hasattr(response, 'candidates')}")
+                
+            except Exception as api_error:
+                logger.error(f"[TRANSCRIBE] API request failed: {type(api_error).__name__}: {str(api_error)}")
+                print(f"[TRANSCRIBE] API request failed: {type(api_error).__name__}: {str(api_error)}")
+                
+                # Try to extract more details from the error
+                if hasattr(api_error, '__dict__'):
+                    logger.error(f"[TRANSCRIBE] Error details: {api_error.__dict__}")
+                    print(f"[TRANSCRIBE] Error details: {api_error.__dict__}")
+                
+                raise
             
             # Check if response has text
             try:
                 if hasattr(response, 'text') and response.text:
-                    return response.text.strip()
+                    transcribed_text = response.text.strip()
+                    logger.info(f"[TRANSCRIBE] Successfully extracted text (length: {len(transcribed_text)} chars)")
+                    print(f"[TRANSCRIBE] Successfully extracted text (length: {len(transcribed_text)} chars)")
+                    print(f"[TRANSCRIBE] Transcribed text preview: {transcribed_text[:100]}...")
+                    return transcribed_text
                 else:
-                    print(f"Transcription Warning: No text in response.")
+                    logger.warning(f"[TRANSCRIBE] No text in response. Response: {response}")
+                    print(f"[TRANSCRIBE] Warning: No text in response")
                     return ""
             except Exception as text_error:
-                print(f"Transcription Warning: Error accessing response.text: {text_error}")
+                logger.error(f"[TRANSCRIBE] Error accessing response.text: {type(text_error).__name__}: {str(text_error)}")
+                print(f"[TRANSCRIBE] Error accessing response.text: {type(text_error).__name__}: {str(text_error)}")
+                
                 # Try accessing via candidates if available
                 try:
                     if hasattr(response, 'candidates') and response.candidates:
-                        return response.candidates[0].content.parts[0].text.strip()
-                except:
-                    pass
+                        logger.info("[TRANSCRIBE] Attempting to extract text from candidates...")
+                        print("[TRANSCRIBE] Attempting to extract text from candidates...")
+                        
+                        candidate_text = response.candidates[0].content.parts[0].text.strip()
+                        logger.info(f"[TRANSCRIBE] Successfully extracted from candidates (length: {len(candidate_text)} chars)")
+                        print(f"[TRANSCRIBE] Successfully extracted from candidates (length: {len(candidate_text)} chars)")
+                        return candidate_text
+                    else:
+                        logger.warning("[TRANSCRIBE] No candidates available in response")
+                        print("[TRANSCRIBE] Warning: No candidates available in response")
+                except Exception as candidate_error:
+                    logger.error(f"[TRANSCRIBE] Error accessing candidates: {type(candidate_error).__name__}: {str(candidate_error)}")
+                    print(f"[TRANSCRIBE] Error accessing candidates: {type(candidate_error).__name__}: {str(candidate_error)}")
+                
                 return ""
             
         except Exception as e:
-            print(f"Transcription Error: {e}")
+            logger.error(f"[TRANSCRIBE] Fatal error: {type(e).__name__}: {str(e)}")
+            print(f"[TRANSCRIBE] Fatal error: {type(e).__name__}: {str(e)}")
+            
+            # Log stack trace for debugging
+            import traceback
+            stack_trace = traceback.format_exc()
+            logger.error(f"[TRANSCRIBE] Stack trace:\n{stack_trace}")
+            print(f"[TRANSCRIBE] Stack trace:\n{stack_trace}")
+            
             return ""
         finally:
+            # Clean up uploaded file from Gemini if exists
+            if uploaded_file_name:
+                try:
+                    logger.info(f"[TRANSCRIBE] Cleaning up uploaded file: {uploaded_file_name}")
+                    print(f"[TRANSCRIBE] Cleaning up uploaded file: {uploaded_file_name}")
+                    client.files.delete(name=uploaded_file_name)
+                    logger.info("[TRANSCRIBE] Uploaded file deleted successfully")
+                    print("[TRANSCRIBE] Uploaded file deleted successfully")
+                except Exception as delete_error:
+                    logger.warning(f"[TRANSCRIBE] Failed to delete uploaded file: {delete_error}")
+                    print(f"[TRANSCRIBE] Warning: Failed to delete uploaded file: {delete_error}")
+            
             # Clean up local temp file
             if temp_audio_path and os.path.exists(temp_audio_path):
-                os.unlink(temp_audio_path)
+                try:
+                    os.unlink(temp_audio_path)
+                    logger.info(f"[TRANSCRIBE] Temporary file deleted: {temp_audio_path}")
+                    print(f"[TRANSCRIBE] Temporary file deleted: {temp_audio_path}")
+                except Exception as unlink_error:
+                    logger.warning(f"[TRANSCRIBE] Failed to delete temp file: {unlink_error}")
+                    print(f"[TRANSCRIBE] Warning: Failed to delete temp file: {unlink_error}")
 
 audio_service = AudioService()
