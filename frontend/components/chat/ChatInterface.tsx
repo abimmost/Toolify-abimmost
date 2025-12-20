@@ -295,7 +295,18 @@ export function ChatInterface() {
       // Use the first file if provided, otherwise send null (backend might handle it or error)
       const fileToUse = files && files.length > 0 ? files[0] : null;
 
-      const response = await api.generateManual(token, undefined, fileToUse);
+      const response = await api.generateManual(
+        token,
+        undefined,
+        fileToUse,
+        currentChatId || undefined
+      );
+
+      // If it was a new chat, update session and list
+      if (response.session_id && response.session_id !== currentChatId) {
+        setCurrentChatId(response.session_id);
+        loadChats(); // Refresh list to show new chat title
+      }
 
       // Generate PDF
       let pdfUrl: string | undefined = undefined;

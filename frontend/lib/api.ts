@@ -33,6 +33,7 @@ export interface ManualGenerationResponse {
   };
   pdf_url?: string;
   timestamp: string;
+  session_id?: string;
 }
 
 /**
@@ -188,7 +189,8 @@ export async function getChatMessages(
 export async function generateManual(
   token: string,
   toolName?: string,
-  file?: File | null
+  file?: File | null,
+  sessionId?: string
 ): Promise<ManualGenerationResponse> {
   try {
     const formData = new FormData();
@@ -196,6 +198,7 @@ export async function generateManual(
 
     if (toolName) formData.append("tool_name", toolName);
     if (file) formData.append("file", file);
+    if (sessionId) formData.append("session_id", sessionId);
 
     console.log("📤 Requesting manual generation:", {
       hasToolName: !!toolName,
